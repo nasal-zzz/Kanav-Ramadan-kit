@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Ramadan Kit Token Search</title>
+<style>
+body {
+    font-family: Arial;
+    text-align: center;
+    padding: 40px;
+    background: #f4f4f4;
+}
+input {
+    padding: 10px;
+    width: 250px;
+    font-size: 16px;
+}
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+}
+.result {
+    margin-top: 20px;
+    font-size: 18px;
+    font-weight: bold;
+}
+</style>
+</head>
+<body>
+
+<h2>Ramadan Kit Token Search</h2>
+
+<input type="text" id="phoneInput" placeholder="Enter Phone Number">
+<br><br>
+<button onclick="searchToken()">Search</button>
+
+<div class="result" id="result"></div>
+
+<script>
+async function searchToken() {
+    const phone = document.getElementById("phoneInput").value.trim();
+    const response = await fetch("data.csv");
+    const data = await response.text();
+    const rows = data.split("\n").slice(1);
+
+    let found = false;
+
+    for (let row of rows) {
+        const cols = row.split(",");
+        const name = cols[1];
+        const phone1 = cols[2];
+        const phone2 = cols[3];
+        const token = cols[4];
+
+        if (phone === phone1 || phone === phone2) {
+            document.getElementById("result").innerHTML =
+                "Name: " + name + "<br>Token No: " + token;
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        document.getElementById("result").innerHTML = "Token Not Found";
+    }
+}
+</script>
+
+</body>
+</html>
