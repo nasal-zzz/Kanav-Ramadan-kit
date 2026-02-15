@@ -178,7 +178,7 @@ async function loadCSV() {
             throw new Error('Could not load data.csv');
         }
         csvData = await response.text();
-        console.log("CSV loaded successfully");
+        console.log("CSV loaded successfully, length:", csvData.length);
     } catch (error) {
         console.error("Error loading CSV:", error);
         document.getElementById("result").innerHTML = 
@@ -187,7 +187,7 @@ async function loadCSV() {
     }
 }
 
-// Parse CSV row handling quotes and commas
+// Improved CSV parser that handles quoted fields with commas
 function parseCSVRow(row) {
     const result = [];
     let cell = '';
@@ -195,24 +195,38 @@ function parseCSVRow(row) {
     
     for (let i = 0; i < row.length; i++) {
         const char = row[i];
+        const nextChar = i < row.length - 1 ? row[i + 1] : null;
         
-        if (char === '"') {
+        if (char === '"' && nextChar === '"') {
+            // Handle escaped quotes ("")
+            cell += '"';
+            i++; // Skip next quote
+        } else if (char === '"') {
+            // Toggle quote state
             insideQuotes = !insideQuotes;
         } else if (char === ',' && !insideQuotes) {
-            result.push(cell.trim());
+            // Field separator
+            result.push(cell);
             cell = '';
+        } else if (char === '\r' || char === '\n') {
+            // Skip line ending characters
+            continue;
         } else {
             cell += char;
         }
     }
-    result.push(cell.trim());
+    
+    // Add the last cell
+    result.push(cell);
+    
     return result;
 }
 
 // Normalize phone number for comparison
 function normalizePhone(phone) {
     if (!phone) return '';
-    return phone.replace(/\s+/g, '').replace(/[^\d]/g, '');
+    // Remove all non-digit characters
+    return phone.toString().replace(/[^\d]/g, '').trim();
 }
 
 async function searchToken() {
@@ -242,9 +256,13 @@ async function searchToken() {
             throw new Error("No data available");
         }
         
-        const rows = csvData.split("\n");
+        // Split by newlines (handle both \n and \r\n)
+        const rows = csvData.split(/\r?\n/);
         const normalizedSearchPhone = normalizePhone(phone);
         const matches = []; // Store all matching entries
+        
+        console.log("Searching for:", normalizedSearchPhone);
+        console.log("Total rows:", rows.length);
         
         // Skip header row (index 0)
         for (let i = 1; i < rows.length; i++) {
@@ -254,7 +272,10 @@ async function searchToken() {
             const cols = parseCSVRow(row);
             
             // Based on your CSV structure:
+            // Column 0 = SL#
             // Column 1 = NAME
+            // Column 2 = AGE
+            // Column 3 = ADDRESS
             // Column 4 = PHONE 1
             // Column 5 = PHONE 2
             // Column 10 = TOKEN NO
@@ -265,7 +286,13 @@ async function searchToken() {
             const token = cols[10] || '';
             const kitSize = cols[11] || '';
             
+            // Debug first few matches
+            if (i < 5) {
+                console.log(`Row ${i}: phone1=${phone1}, phone2=${phone2}, token=${token}`);
+            }
+            
             if (normalizedSearchPhone === phone1 || normalizedSearchPhone === phone2) {
+                console.log(`Match found at row ${i}:`, {name, token, phone1, phone2});
                 matches.push({
                     name: name,
                     token: token,
@@ -274,6 +301,8 @@ async function searchToken() {
             }
         }
         
+        console.log("Total matches found:", matches.length);
+        
         if (matches.length > 0) {
             let html = "<strong>✓ Token(s) Found!</strong>";
             
@@ -281,7 +310,7 @@ async function searchToken() {
             matches.forEach((match, index) => {
                 html += `
                     <div class="token-entry">
-                        <div class="person-name">${match.name} <span class="kit-size">${match.kitSize}</span></div>
+                        <div class="person-name">${match.name}${match.kitSize ? ' <span class="kit-size">' + match.kitSize + '</span>' : ''}</div>
                         <div class="token-number">${match.token}</div>
                     </div>
                 `;
