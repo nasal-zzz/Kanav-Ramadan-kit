@@ -109,6 +109,14 @@ button:disabled {
 .result .info {
     margin: 10px 0;
     font-size: 16px;
+    text-align: left;
+}
+
+.result .info strong {
+    display: inline;
+    font-size: 14px;
+    color: #555;
+    margin-right: 5px;
 }
 
 .token-entry {
@@ -278,11 +286,16 @@ async function searchToken() {
             // Column 3 = ADDRESS
             // Column 4 = PHONE 1
             // Column 5 = PHONE 2
+            // Column 7 = PANJAYATH
+            // Column 8 = AREA
             // Column 10 = TOKEN NO
             // Column 11 = KIT SIZE
             const name = cols[1] || '';
+            const address = cols[3] || '';
             const phone1 = normalizePhone(cols[4] || '');
             const phone2 = normalizePhone(cols[5] || '');
+            const panjayath = cols[7] || '';
+            const area = cols[8] || '';
             const token = cols[10] || '';
             const kitSize = cols[11] || '';
             
@@ -295,6 +308,9 @@ async function searchToken() {
                 console.log(`Match found at row ${i}:`, {name, token, phone1, phone2});
                 matches.push({
                     name: name,
+                    address: address,
+                    panjayath: panjayath,
+                    area: area,
                     token: token,
                     kitSize: kitSize
                 });
@@ -312,6 +328,9 @@ async function searchToken() {
                     <div class="token-entry">
                         <div class="person-name">${match.name}${match.kitSize ? ' <span class="kit-size">' + match.kitSize + '</span>' : ''}</div>
                         <div class="token-number">${match.token}</div>
+                        ${match.address ? '<div class="info"><strong>Address:</strong> ' + match.address + '</div>' : ''}
+                        ${match.area ? '<div class="info"><strong>Area:</strong> ' + match.area + '</div>' : ''}
+                        ${match.panjayath ? '<div class="info"><strong>Panchayath:</strong> ' + match.panjayath + '</div>' : ''}
                     </div>
                 `;
             });
