@@ -111,11 +111,46 @@ button:disabled {
     font-size: 16px;
 }
 
+.token-entry {
+    background: #f8f9fa;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+}
+
 .token-number {
     font-size: 28px;
     font-weight: bold;
     color: #667eea;
-    margin: 15px 0;
+    margin: 10px 0;
+}
+
+.total-tokens {
+    background: #667eea;
+    color: white;
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 20px;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.person-name {
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.kit-size {
+    display: inline-block;
+    padding: 4px 12px;
+    background: #e3f2fd;
+    color: #1976d2;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-left: 10px;
 }
 </style>
 </head>
@@ -123,9 +158,9 @@ button:disabled {
 
 <div class="container">
     <h2>🌙 Ramadan Kit Token Search</h2>
-    <p class="subtitle">Enter your phone number to find your token</p>
+    <p class="subtitle">Enter your phone number to find your token(s)</p>
     
-    <input type="text" id="phoneInput" placeholder="Enter Phone Number">
+    <input type="text" id="phoneInput" placeholder="Enter Phone Number" autocomplete="tel">
     <br>
     <button onclick="searchToken()" id="searchBtn">Search Token</button>
     
@@ -209,7 +244,7 @@ async function searchToken() {
         
         const rows = csvData.split("\n");
         const normalizedSearchPhone = normalizePhone(phone);
-        let found = false;
+        const matches = []; // Store all matching entries
         
         // Skip header row (index 0)
         for (let i = 1; i < rows.length; i++) {
@@ -223,24 +258,45 @@ async function searchToken() {
             // Column 4 = PHONE 1
             // Column 5 = PHONE 2
             // Column 10 = TOKEN NO
+            // Column 11 = KIT SIZE
             const name = cols[1] || '';
             const phone1 = normalizePhone(cols[4] || '');
             const phone2 = normalizePhone(cols[5] || '');
             const token = cols[10] || '';
+            const kitSize = cols[11] || '';
             
             if (normalizedSearchPhone === phone1 || normalizedSearchPhone === phone2) {
-                resultDiv.innerHTML = 
-                    "<strong>✓ Token Found!</strong>" +
-                    "<div class='info'>Name: <strong>" + name + "</strong></div>" +
-                    "<div class='token-number'>" + token + "</div>" +
-                    "<div class='info' style='font-size: 14px; color: #666; margin-top: 15px;'>Please save this token number</div>";
-                resultDiv.className = "result success";
-                found = true;
-                break;
+                matches.push({
+                    name: name,
+                    token: token,
+                    kitSize: kitSize
+                });
             }
         }
         
-        if (!found) {
+        if (matches.length > 0) {
+            let html = "<strong>✓ Token(s) Found!</strong>";
+            
+            // Display each token entry
+            matches.forEach((match, index) => {
+                html += `
+                    <div class="token-entry">
+                        <div class="person-name">${match.name} <span class="kit-size">${match.kitSize}</span></div>
+                        <div class="token-number">${match.token}</div>
+                    </div>
+                `;
+            });
+            
+            // If multiple tokens, show total count
+            if (matches.length > 1) {
+                html += `<div class="total-tokens">Total Tokens: ${matches.length}</div>`;
+            }
+            
+            html += "<div class='info' style='font-size: 14px; color: #666; margin-top: 15px;'>Please save your token number(s)</div>";
+            
+            resultDiv.innerHTML = html;
+            resultDiv.className = "result success";
+        } else {
             resultDiv.innerHTML = 
                 "❌ Token Not Found<br>" +
                 "<div style='font-size: 14px; margin-top: 10px;'>Please check the phone number and try again</div>";
