@@ -2,69 +2,272 @@
 <html>
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ramadan Kit Token Search</title>
 <style>
 body {
-    font-family: Arial;
+    font-family: Arial, sans-serif;
     text-align: center;
-    padding: 40px;
-    background: #f4f4f4;
+    padding: 40px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    margin: 0;
 }
+
+.container {
+    background: white;
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+h2 {
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 30px;
+}
+
 input {
-    padding: 10px;
-    width: 250px;
+    padding: 12px;
+    width: 100%;
+    max-width: 300px;
     font-size: 16px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    box-sizing: border-box;
+    margin-bottom: 15px;
 }
+
+input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
 button {
-    padding: 10px 20px;
+    padding: 12px 30px;
     font-size: 16px;
     cursor: pointer;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    transition: background 0.3s;
 }
+
+button:hover {
+    background: #5568d3;
+}
+
+button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
 .result {
-    margin-top: 20px;
+    margin-top: 30px;
+    padding: 20px;
     font-size: 18px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    display: none;
+}
+
+.result.success {
+    display: block;
+    background: #d4edda;
+    color: #155724;
+    border: 2px solid #c3e6cb;
+}
+
+.result.error {
+    display: block;
+    background: #f8d7da;
+    color: #721c24;
+    border: 2px solid #f5c6cb;
+}
+
+.result.loading {
+    display: block;
+    background: #fff3cd;
+    color: #856404;
+    border: 2px solid #ffeaa7;
+}
+
+.result strong {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 20px;
+}
+
+.result .info {
+    margin: 10px 0;
+    font-size: 16px;
+}
+
+.token-number {
+    font-size: 28px;
     font-weight: bold;
+    color: #667eea;
+    margin: 15px 0;
 }
 </style>
 </head>
 <body>
 
-<h2>Ramadan Kit Token Search</h2>
-
-<input type="text" id="phoneInput" placeholder="Enter Phone Number">
-<br><br>
-<button onclick="searchToken()">Search</button>
-
-<div class="result" id="result"></div>
+<div class="container">
+    <h2>🌙 Ramadan Kit Token Search</h2>
+    <p class="subtitle">Enter your phone number to find your token</p>
+    
+    <input type="text" id="phoneInput" placeholder="Enter Phone Number">
+    <br>
+    <button onclick="searchToken()" id="searchBtn">Search Token</button>
+    
+    <div class="result" id="result"></div>
+</div>
 
 <script>
-async function searchToken() {
-    const phone = document.getElementById("phoneInput").value.trim();
-    const response = await fetch("data.csv");
-    const data = await response.text();
-    const rows = data.split("\n").slice(1);
+let csvData = null;
 
-    let found = false;
-
-    for (let row of rows) {
-        const cols = row.split(",");
-        const name = cols[1];
-        const phone1 = cols[2];
-        const phone2 = cols[3];
-        const token = cols[4];
-
-        if (phone === phone1 || phone === phone2) {
-            document.getElementById("result").innerHTML =
-                "Name: " + name + "<br>Token No: " + token;
-            found = true;
-            break;
+// Load CSV data when page loads
+async function loadCSV() {
+    try {
+        const response = await fetch("data.csv");
+        if (!response.ok) {
+            throw new Error('Could not load data.csv');
         }
-    }
-
-    if (!found) {
-        document.getElementById("result").innerHTML = "Token Not Found";
+        csvData = await response.text();
+        console.log("CSV loaded successfully");
+    } catch (error) {
+        console.error("Error loading CSV:", error);
+        document.getElementById("result").innerHTML = 
+            "⚠️ Error: Could not load data file. Make sure data.csv is in the same folder.";
+        document.getElementById("result").className = "result error";
     }
 }
+
+// Parse CSV row handling quotes and commas
+function parseCSVRow(row) {
+    const result = [];
+    let cell = '';
+    let insideQuotes = false;
+    
+    for (let i = 0; i < row.length; i++) {
+        const char = row[i];
+        
+        if (char === '"') {
+            insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+            result.push(cell.trim());
+            cell = '';
+        } else {
+            cell += char;
+        }
+    }
+    result.push(cell.trim());
+    return result;
+}
+
+// Normalize phone number for comparison
+function normalizePhone(phone) {
+    if (!phone) return '';
+    return phone.replace(/\s+/g, '').replace(/[^\d]/g, '');
+}
+
+async function searchToken() {
+    const phone = document.getElementById("phoneInput").value.trim();
+    const resultDiv = document.getElementById("result");
+    const searchBtn = document.getElementById("searchBtn");
+    
+    if (!phone) {
+        resultDiv.innerHTML = "⚠️ Please enter a phone number";
+        resultDiv.className = "result error";
+        return;
+    }
+    
+    // Disable button and show loading
+    searchBtn.disabled = true;
+    resultDiv.innerHTML = "🔍 Searching...";
+    resultDiv.className = "result loading";
+    resultDiv.style.display = "block";
+    
+    try {
+        // Load CSV if not already loaded
+        if (!csvData) {
+            await loadCSV();
+        }
+        
+        if (!csvData) {
+            throw new Error("No data available");
+        }
+        
+        const rows = csvData.split("\n");
+        const normalizedSearchPhone = normalizePhone(phone);
+        let found = false;
+        
+        // Skip header row (index 0)
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i].trim();
+            if (!row) continue; // Skip empty rows
+            
+            const cols = parseCSVRow(row);
+            
+            // Based on your CSV structure:
+            // Column 1 = NAME
+            // Column 4 = PHONE 1
+            // Column 5 = PHONE 2
+            // Column 10 = TOKEN NO
+            const name = cols[1] || '';
+            const phone1 = normalizePhone(cols[4] || '');
+            const phone2 = normalizePhone(cols[5] || '');
+            const token = cols[10] || '';
+            
+            if (normalizedSearchPhone === phone1 || normalizedSearchPhone === phone2) {
+                resultDiv.innerHTML = 
+                    "<strong>✓ Token Found!</strong>" +
+                    "<div class='info'>Name: <strong>" + name + "</strong></div>" +
+                    "<div class='token-number'>" + token + "</div>" +
+                    "<div class='info' style='font-size: 14px; color: #666; margin-top: 15px;'>Please save this token number</div>";
+                resultDiv.className = "result success";
+                found = true;
+                break;
+            }
+        }
+        
+        if (!found) {
+            resultDiv.innerHTML = 
+                "❌ Token Not Found<br>" +
+                "<div style='font-size: 14px; margin-top: 10px;'>Please check the phone number and try again</div>";
+            resultDiv.className = "result error";
+        }
+    } catch (error) {
+        console.error("Search error:", error);
+        resultDiv.innerHTML = "⚠️ Error: " + error.message;
+        resultDiv.className = "result error";
+    } finally {
+        searchBtn.disabled = false;
+    }
+}
+
+// Allow Enter key to search
+document.addEventListener('DOMContentLoaded', function() {
+    const input = document.getElementById('phoneInput');
+    
+    input.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            searchToken();
+        }
+    });
+    
+    // Pre-load CSV data
+    loadCSV();
+});
 </script>
 
 </body>
