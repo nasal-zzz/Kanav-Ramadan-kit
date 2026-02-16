@@ -34,6 +34,17 @@ h2 {
     margin-bottom: 30px;
 }
 
+select {
+    padding: 12px;
+    width: 100%;
+    max-width: 300px;
+    font-size: 16px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    box-sizing: border-box;
+    margin-bottom: 15px;
+}
+
 input {
     padding: 12px;
     width: 100%;
@@ -45,7 +56,7 @@ input {
     margin-bottom: 15px;
 }
 
-input:focus {
+input:focus, select:focus {
     outline: none;
     border-color: #667eea;
 }
@@ -150,6 +161,12 @@ button:disabled {
     margin-bottom: 5px;
 }
 
+.phone-display {
+    font-size: 14px;
+    color: #666;
+    margin-top: 5px;
+}
+
 .kit-size {
     display: inline-block;
     padding: 4px 12px;
@@ -166,11 +183,18 @@ button:disabled {
 
 <div class="container">
     <h2>🌙 Ramadan Kit Token Search</h2>
-    <p class="subtitle">Enter your phone number to find your token(s)</p>
+    <p class="subtitle">Search by phone number, token number, name, or address</p>
     
-    <input type="text" id="phoneInput" placeholder="Enter Phone Number" autocomplete="tel">
+    <select id="searchType">
+        <option value="phone">Search by Phone Number</option>
+        <option value="token">Search by Token Number</option>
+        <option value="name">Search by Name</option>
+        <option value="address">Search by Address</option>
+    </select>
     <br>
-    <button onclick="searchToken()" id="searchBtn">Search Token</button>
+    <input type="text" id="searchInput" placeholder="Enter Search Value" autocomplete="off">
+    <br>
+    <button onclick="searchToken()" id="searchBtn">Search</button>
     
     <div class="result" id="result"></div>
 </div>
@@ -237,13 +261,29 @@ function normalizePhone(phone) {
     return phone.toString().replace(/[^\d]/g, '').trim();
 }
 
+// Update placeholder based on search type
+function updatePlaceholder() {
+    const searchType = document.getElementById("searchType").value;
+    const input = document.getElementById("searchInput");
+    
+    const placeholders = {
+        'phone': 'Enter Phone Number',
+        'token': 'Enter Token Number',
+        'name': 'Enter Name',
+        'address': 'Enter Address/Area/Panchayath'
+    };
+    
+    input.placeholder = placeholders[searchType] || 'Enter Search Value';
+}
+
 async function searchToken() {
-    const phone = document.getElementById("phoneInput").value.trim();
+    const searchValue = document.getElementById("searchInput").value.trim();
+    const searchType = document.getElementById("searchType").value;
     const resultDiv = document.getElementById("result");
     const searchBtn = document.getElementById("searchBtn");
     
-    if (!phone) {
-        resultDiv.innerHTML = "⚠️ Please enter a phone number";
+    if (!searchValue) {
+        resultDiv.innerHTML = "⚠️ Please enter a search value";
         resultDiv.className = "result error";
         return;
     }
@@ -266,10 +306,9 @@ async function searchToken() {
         
         // Split by newlines (handle both \n and \r\n)
         const rows = csvData.split(/\r?\n/);
-        const normalizedSearchPhone = normalizePhone(phone);
         const matches = []; // Store all matching entries
         
-        console.log("Searching for:", normalizedSearchPhone);
+        console.log("Searching for:", searchValue, "Type:", searchType);
         console.log("Total rows:", rows.length);
         
         // Skip header row (index 0)
@@ -292,27 +331,43 @@ async function searchToken() {
             // Column 11 = KIT SIZE
             const name = cols[1] || '';
             const address = cols[3] || '';
-            const phone1 = normalizePhone(cols[4] || '');
-            const phone2 = normalizePhone(cols[5] || '');
+            const phone1 = cols[4] || '';
+            const phone2 = cols[5] || '';
+            const phone1Normalized = normalizePhone(phone1);
+            const phone2Normalized = normalizePhone(phone2);
             const panjayath = cols[7] || '';
             const area = cols[8] || '';
             const token = cols[10] || '';
             const kitSize = cols[11] || '';
             
-            // Debug first few matches
-            if (i < 5) {
-                console.log(`Row ${i}: phone1=${phone1}, phone2=${phone2}, token=${token}`);
+            let isMatch = false;
+            
+            // Check match based on search type
+            if (searchType === 'phone') {
+                const normalizedSearchPhone = normalizePhone(searchValue);
+                isMatch = normalizedSearchPhone === phone1Normalized || normalizedSearchPhone === phone2Normalized;
+            } else if (searchType === 'token') {
+                isMatch = token.toLowerCase().trim() === searchValue.toLowerCase().trim();
+            } else if (searchType === 'name') {
+                isMatch = name.toLowerCase().includes(searchValue.toLowerCase());
+            } else if (searchType === 'address') {
+                const searchLower = searchValue.toLowerCase();
+                isMatch = address.toLowerCase().includes(searchLower) ||
+                         area.toLowerCase().includes(searchLower) ||
+                         panjayath.toLowerCase().includes(searchLower);
             }
             
-            if (normalizedSearchPhone === phone1 || normalizedSearchPhone === phone2) {
-                console.log(`Match found at row ${i}:`, {name, token, phone1, phone2});
+            if (isMatch) {
+                console.log(`Match found at row ${i}:`, {name, token});
                 matches.push({
                     name: name,
                     address: address,
                     panjayath: panjayath,
                     area: area,
                     token: token,
-                    kitSize: kitSize
+                    kitSize: kitSize,
+                    phone1: phone1,
+                    phone2: phone2
                 });
             }
         }
@@ -320,10 +375,11 @@ async function searchToken() {
         console.log("Total matches found:", matches.length);
         
         if (matches.length > 0) {
-            let html = "<strong>✓ Token(s) Found!</strong>";
+            let html = "<strong>✓ Result(s) Found!</strong>";
             
             // Display each token entry
             matches.forEach((match, index) => {
+                const phones = [match.phone1, match.phone2].filter(p => p).join(', ');
                 html += `
                     <div class="token-entry">
                         <div class="person-name">${match.name}${match.kitSize ? ' <span class="kit-size">' + match.kitSize + '</span>' : ''}</div>
@@ -331,23 +387,24 @@ async function searchToken() {
                         ${match.address ? '<div class="info"><strong>Address:</strong> ' + match.address + '</div>' : ''}
                         ${match.area ? '<div class="info"><strong>Area:</strong> ' + match.area + '</div>' : ''}
                         ${match.panjayath ? '<div class="info"><strong>Panchayath:</strong> ' + match.panjayath + '</div>' : ''}
+                        ${phones ? '<div class="phone-display"><strong>Phone:</strong> ' + phones + '</div>' : ''}
                     </div>
                 `;
             });
             
             // If multiple tokens, show total count
             if (matches.length > 1) {
-                html += `<div class="total-tokens">Total Tokens: ${matches.length}</div>`;
+                html += `<div class="total-tokens">Total Results: ${matches.length}</div>`;
             }
             
-            html += "<div class='info' style='font-size: 14px; color: #666; margin-top: 15px;'>Please save your token number(s)</div>";
+            html += "<div class='info' style='font-size: 14px; color: #666; margin-top: 15px; text-align: center;'>Please save your token number(s)</div>";
             
             resultDiv.innerHTML = html;
             resultDiv.className = "result success";
         } else {
             resultDiv.innerHTML = 
-                "❌ Token Not Found<br>" +
-                "<div style='font-size: 14px; margin-top: 10px;'>Please check the phone number and try again</div>";
+                "❌ No Results Found<br>" +
+                "<div style='font-size: 14px; margin-top: 10px;'>Please check your search and try again</div>";
             resultDiv.className = "result error";
         }
     } catch (error) {
@@ -361,13 +418,17 @@ async function searchToken() {
 
 // Allow Enter key to search
 document.addEventListener('DOMContentLoaded', function() {
-    const input = document.getElementById('phoneInput');
+    const input = document.getElementById('searchInput');
+    const searchType = document.getElementById('searchType');
     
     input.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             searchToken();
         }
     });
+    
+    // Update placeholder when search type changes
+    searchType.addEventListener('change', updatePlaceholder);
     
     // Pre-load CSV data
     loadCSV();
